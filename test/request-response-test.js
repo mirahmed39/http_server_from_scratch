@@ -19,6 +19,7 @@ function mockSocket() {
         return s;
     
     });
+
 }
 
 describe('Request', function() {

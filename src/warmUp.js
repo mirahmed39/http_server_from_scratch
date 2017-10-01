@@ -5,7 +5,7 @@ const PORT = 8080;
 
 const server = net.createServer((sock) => {
     sock.on('data', function (data) {
-        console.log("data recieved");
+        console.log("" + data);
         sock.write('HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<em>Hello</em> <strong>World</strong>');
         sock.end();
     });

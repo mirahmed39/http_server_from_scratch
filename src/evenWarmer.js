@@ -5,101 +5,149 @@ const net = require('net');
 const HOST = '127.0.0.1';
 const PORT = 8080;
 
-function getMethod(s) {
-    let requestData = s.split(' ');
-    return requestData[0];
-}
-function getPath(s) {
-    let requestData = s.split(' ');
-    return requestData[1];
-}
-function getHeader(s) {
-    // there is ony one empty line between the header and the body.
-    let obj = {};
-    let requestData = s.split('\r\n');
-    let headerInfo = [];
-    for (let i = 1; i < requestData.length; i++) {
-        if(requestData[i])
-            headerInfo.push(requestData[i]);
-        else
-            break;
-    }
-    headerInfo.map(function (ele) {
-        let headerKey = ele.substring(0,ele.indexOf(':')).trim();
-        let headerValue = ele.substring(ele.indexOf(':')+1).trim();
-        obj[headerKey] = headerValue;
-    });
-    return obj;
-}
-
-function getBody(s) {
-    let bodyData = '';
-    let requestData = s.split('\r\n');
-    // if the second line after the header line is empty, then body is empty
-    // otherwise body is not empty and need to get to the index where the body starts
-    // and slice from that index to the end of the array to get the entire body.
-    if (!requestData[requestData.length-1])
-        return bodyData;
-    let bodyIndex = requestData.indexOf('');
-    let bodyContent = requestData.slice(bodyIndex+1);
-    for(let i = 0; i < bodyContent.length; i++) {
-        // if we are at the last line we do not want to add a new line ('\r\n') at the end.
-        // otherwise, we will do so.
-        if (i === bodyContent.length - 1)
-            bodyData += bodyContent[i];
-        else
-            bodyData += bodyContent[i] + "\r\n";
-    }
-    return bodyData;
-}
-
 class Request {
     constructor(s) {
-        this.path = getPath(s);
-        this.method = getMethod(s);
-        this.headers = getHeader(s);
-        this.body = getBody(s);
+        //pre-processing for headers and body
+        let headerData = {};
+        let bodyData = '';
+        let bodyArray = s.split('\r\n').slice(s.split('\r\n').indexOf('') + 1);
+        let headerArray = s.split('\r\n').slice(1, s.split('\r\n').indexOf(''));
+        headerArray.forEach(function (ele) {
+            let key = ele.slice(0, ele.indexOf(':')).trim();
+            let value = ele.slice(ele.indexOf(':')+2).trim();
+            headerData[key] = value;
+        });
+        if (!bodyArray[0])
+            bodyData = '';
+        else {
+            for(let i = 0; i < bodyArray.length; i++) {
+                if (i === bodyArray.length - 1)
+                    bodyData += bodyArray[i];
+                else
+                    bodyData += bodyArray[i] + "\r\n";
+            }
+        }
+        //property initialization
+        this.path = s.split(' ')[1];
+        this.method = s.split(' ')[0];
+        this.headers = headerData;
+        this.body = bodyData;
         this.version = 'HTTP/1.1';
     }
     toString() {
         let requestOutput = "";
         requestOutput += this.method + " " + this.path + " " + this.version + "\r\n";
-        let headerKeys = Object.keys(this.headers);
-        console.log(this.path);
-        headerKeys.forEach(function (ele) {
-            //console.log(ele);
-           requestOutput += ele + ": " + this.headers[ele] + "\r\n";
-        });
+        for (let key in this.headers) {
+           requestOutput += key + ": " + this.headers[key] + "\r\n";
+        }
         // there is a \r\n before the body starts.
         requestOutput += "\r\n";
         requestOutput += this.body;
-
         return requestOutput;
     }
 }
+let statCode = {
+    200: 'OK',
+    404: 'Not Found',
+    500: 'Internal Server Error',
+    400: 'Bad Request',
+    301: 'Moved Permanently',
+    302: 'Found',
+    303: 'See Other'
+};
 
+console.log(statCode[200]);
+class Response {
+    constructor(socket) {
+        this.statCode = {
+            200: 'OK',
+            404: 'Not Found',
+            500: 'Internal Server Error',
+            400: 'Bad Request',
+            301: 'Moved Permanently',
+            302: 'Found',
+            303: 'See Other'
+        };
+        this.sock = socket;
+        this.headers = {};
+        this.body = "";
+        this.statusCode = NaN; // by default
+        this.version = 'HTTP/1.1';
+    }
+    setHeader(name, value) {
+        this.headers[name] = value;
+    }
+    write(data) {
+        this.sock.write(data);
+    }
+    end(s) {
+        this.sock.end(s);
+    }
+    send(statusCode, body) {
+        let responseOutput = "";
+        this.statusCode = statusCode;
+        this.body = body;
+        responseOutput += this.version + " " + this.statusCode + " " + this.statCode[statusCode] + "\r\n";
+        responseOutput += this.printHeaders();
+        responseOutput += body;
+        this.end(responseOutput);
+    }
+    writeHead(statusCode) {
+        let responseOutput = "";
+        this.statusCode = statusCode;
+        responseOutput += this.version + " " + this.statusCode + " " + this.statCode[statusCode] + "\r\n";
+        responseOutput += this.printHeaders();
+        this.write(responseOutput);
+    }
+    redirect(statusCode, url) {
+        let responseOutput = "";
+        if(statusCode && url) {
+            this.statusCode = statusCode;
+            this.setHeader('Location', url);
+            console.log("status code", this.statusCode, "description:", this.statusCode[statusCode]);
+        }
+        else {
+            this.statusCode = 301;
+            console.log("status code", this.statusCode, "description:", this.statusCode[this.statusCode]);
+            this.setHeader('Location', url);
+        }
+        responseOutput += this.version + " " + this.statusCode + " " + this.statCode[this.statusCode] + "\r\n";
+        responseOutput += this.printHeaders();
+        this.end(responseOutput);
+    }
+    toString() {
+        let responseOutput = this.version + " " + this.statusCode + " " + this.statCode[this.statusCode] + "\r\n";
+        responseOutput += this.printHeaders();
+        responseOutput += this.body;
+        return responseOutput;
+    }
+    // helper function
+    printHeaders() {
+        let headerOutput = "";
+        for(let key in this.headers) {
+            if (this.headers.hasOwnProperty(key))
+                headerOutput += key + ": " + this.headers[key] + "\r\n";
+        }
+        return headerOutput+"\r\n";
+    }
+
+}
+/*
 const server = net.createServer((sock) => {
     sock.on('data', function (data) {
         const req = new Request(data.toString());
-        console.log(req.headers);
+        if (req.path === '/')
+            sock.write('HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<link rel="stylesheet" type="text/css" href="/foo.css"><h2>This is a red header</h2><em>hello</em><strong>world</strong>');
+        else if(req.path === '/foo.css')
+            sock.write('HTTP/1.1 200 OK\r\nContent-Type: text/css\r\n\r\nh2 {color: red;}');
+        else
+            sock.write('HTTP/1.1 404 NOT FOUND\r\nContent-Type: text/plain\r\n\r\nuh oh... 404 page not found!');
         sock.end();
     });
 });
-server.listen(PORT);
-/*
-let s = 'GET /foo.html HTTP/1.1\r\n';
-s += 'Host: localhost:8080\r\n';
-s += 'Referer: http://bar.baz/qux.html\r\n';
-s += '\r\n';
-s += 'this is part of the body\r\n';
-s += 'this is another part of the body';
-//console.log(s.split('\r\n'));
-req = new Request(s);
-
-console.log(req.toString());
-*/
-// var myString= myString.substring(myString.indexOf('_')+1)
+server.listen(PORT); */
 
 module.exports = {
-    Request: Request
-}
+    Request: Request,
+    Response: Response
+};

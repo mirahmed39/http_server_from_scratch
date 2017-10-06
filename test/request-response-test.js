@@ -161,7 +161,6 @@ describe('Response', function() {
 
         var res = new Response(socket);
         res.redirect('http://baz.qux/corge');
-
         expect(res.headers['Location']).to.equal('http://baz.qux/corge');
         expect(res.statusCode).to.equal(301);
         expect(res.toString()).to.equal(s);

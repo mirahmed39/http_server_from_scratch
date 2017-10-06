@@ -2,6 +2,8 @@
 // create Request and Response constructors...
 
 const net = require('net');
+const fs = require('fs');
+const path = require('path');
 const HOST = '127.0.0.1';
 const PORT = 8080;
 
@@ -46,17 +48,7 @@ class Request {
         return requestOutput;
     }
 }
-let statCode = {
-    200: 'OK',
-    404: 'Not Found',
-    500: 'Internal Server Error',
-    400: 'Bad Request',
-    301: 'Moved Permanently',
-    302: 'Found',
-    303: 'See Other'
-};
 
-console.log(statCode[200]);
 class Response {
     constructor(socket) {
         this.statCode = {
@@ -101,14 +93,12 @@ class Response {
     }
     redirect(statusCode, url) {
         let responseOutput = "";
-        if(statusCode && url) {
-            this.statusCode = statusCode;
-            this.setHeader('Location', url);
-            console.log("status code", this.statusCode, "description:", this.statusCode[statusCode]);
+        if(arguments.length === 1) {
+            this.statusCode = 301;
+            this.setHeader('Location', statusCode);
         }
         else {
-            this.statusCode = 301;
-            console.log("status code", this.statusCode, "description:", this.statusCode[this.statusCode]);
+            this.statusCode = statusCode;
             this.setHeader('Location', url);
         }
         responseOutput += this.version + " " + this.statusCode + " " + this.statCode[this.statusCode] + "\r\n";
@@ -130,22 +120,72 @@ class Response {
         }
         return headerOutput+"\r\n";
     }
+    sendFile(fileName) {
+        const fileTypes = {
+            jpeg: "image/jpg",
+            jpg: "image/jpg",
+            png: "image/png",
+            gif: "image/gif",
+            html: "text/html",
+            css: "text/css",
+            txt: "text/plain"
+        };
+        const fileParts = fileName.split('/');
+        const onlyFileName = fileParts[fileParts.length-1];
+        let publicRoot = path.join(__dirname, '/../public');
+        const filePath = path.join(publicRoot,fileName);
+        const fileExtension = onlyFileName.split('.')[1];
+        const contentType = fileTypes[fileExtension];
+        if (fileExtension === 'html' || fileExtension === 'css' || fileExtension === 'txt'){
+            fs.readFile(filePath,'utf8' ,(err, data) => {
+                this.handleRead(contentType, err, data);
+            });
+        } else {
+            fs.readFile(filePath, (err, data) => {
+                this.handleRead(contentType, err, data);
+            });
+        }
+    }
+    handleRead(contentType, err, data) {
+        if(err) {
+            this.writeHead(500);
+            this.end("Something went wrong reading the file");
+        }
+        else {
+            this.setHeader('Content-Type', contentType);
+            this.writeHead(200);
+            this.write(data);
+            this.end();
+        }
+    }
 
 }
-/*
+
 const server = net.createServer((sock) => {
     sock.on('data', function (data) {
         const req = new Request(data.toString());
-        if (req.path === '/')
-            sock.write('HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<link rel="stylesheet" type="text/css" href="/foo.css"><h2>This is a red header</h2><em>hello</em><strong>world</strong>');
-        else if(req.path === '/foo.css')
-            sock.write('HTTP/1.1 200 OK\r\nContent-Type: text/css\r\n\r\nh2 {color: red;}');
-        else
-            sock.write('HTTP/1.1 404 NOT FOUND\r\nContent-Type: text/plain\r\n\r\nuh oh... 404 page not found!');
-        sock.end();
+        const res = new Response(sock);
+        if (req.path === '/') {
+            res.setHeader('Content-Type', 'text/html');
+            res.send(200, "<link rel=\"stylesheet\" type=\"text/css\" href=\"/foo.css\"><h2>This is a red header</h2><em>hello</em><strong>world</strong>")
+        }
+        else if(req.path === '/foo.css') {
+            res.setHeader('Content-Type', 'text/css');
+            res.send(200, 'h2 {color: red;}');
+        }
+        else if (req.path === '/test') {
+            res.sendFile('/html/test.html');
+        }
+        else if(req.path === '/bmo1.gif') {
+            res.sendFile('/img/bmo1.gif');
+        }
+        else {
+            res.setHeader('Content-Type', 'text/plain');
+            res.send(404,'uh oh... 404 page not found!');
+        }
     });
 });
-server.listen(PORT); */
+server.listen(PORT, HOST);
 
 module.exports = {
     Request: Request,

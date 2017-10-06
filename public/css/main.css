@@ -1,0 +1,54 @@
+nav {
+    text-align: center;
+}
+nav a {
+    font-size: 2.2em;
+    padding: .5em;
+}
+h1 {
+    color: purple;
+    text-align: center;
+}
+
+.index-image {
+    width: 400px;
+    height: 400px;
+    top: 50%;
+    left: 50%;
+    border-radius: 50px;
+    text-align: center;
+}
+
+.about-header {
+    color: purple;
+    text-align: center;
+}
+
+.about-description {
+    font-size: 1.5em;
+    line-height: 2;
+}
+
+.about-container {
+    background: #F0F0F2;
+    margin-left: 10%;
+    margin-right: 10%;
+    padding: 2em;
+    border-radius: 20px;
+}
+
+.random-link {
+    text-decoration: none;
+    font-size: 2em;
+    border: 1px solid white;
+    padding: 5px;
+    border-radius: 5px;
+    background: purple;
+    color: white;
+}
+
+.image_container {
+    margin: auto;
+    width: 50%;
+    padding: 10px;
+}

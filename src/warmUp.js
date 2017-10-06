@@ -10,4 +10,4 @@ const server = net.createServer((sock) => {
         sock.end();
     });
 });
-server.listen(PORT);
+server.listen(PORT, HOST);
